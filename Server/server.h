@@ -13,7 +13,7 @@
 
 #define BUFFER_SIZE 1024
 
-
+void command(int, char*, fd_set*);
 
 
 #endif
