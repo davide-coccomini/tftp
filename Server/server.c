@@ -1,5 +1,5 @@
 #include "server.h"
-
+#include "utility.h"
 
 
 
@@ -76,6 +76,19 @@ int main(int argc, char** argv){
 				}
 			}else{ // Il descrittore pronto è un altro socket
 				printf("\nConnessione in ingresso accettata\n");
+				memset(buffer, 0, BUFFER_SIZE);
+				cmd(i, buffer, &master);
+
+				if(!strcmp(buffer, "!help\0")){
+					printf("Ricezione comando help");
+				}else if(!strcmp(buffer, "!mode\0")){
+					printf("Ricezione comando mode");
+				}else if(!strcmp(buffer, "!get\0")){
+					printf("Ricezione comando get");
+				}else if(!strcmp(buffer, "!quit\0")){
+					printf("Ricezione comando quit");
+				}
+				
 				nbytes = recvfrom(i, buf, sizeof(buf), 0, (struct sockaddr*)&client_addr, &addrlen);
 				close(i);
 				FD_CLR(i, &master);
@@ -85,31 +98,24 @@ int main(int argc, char** argv){
 	}
 
 }
-/*
-void binaryToText(char* fileName, char* outputFile){
-	unsigned char str[256];
-	unsigned int num;
-	int i, len;
+void cmd(int sock, char* buffer, fd_set* master){
+	uint16_t length;
+	int ret;
+
+	memset(&length, 0, sizeof(uint16_t));
+
+	ret = recv(sock, (void*)&length, sizeof(uint16_t),0);
+
+	if(ret < 0){
+		perror("ERRORE! Ricezione della lunghezza del comando non riuscita");
+		return;
+	}else if(!ret){
 	
-	FILE* finp = fopen(fileName, "rb");
-	FILE* fout = fopen(outputFile, "w");
-	
-	while((len = fgetc(finp)) != EOF){
-		fread(str, len, 1, finp);
-		str[len] = '\0';
-		num = (unsigned int)fgetc(finp)<<24;
-		num |= fgetc(finp) << 16;
-		num |= fgetc(finp) << 8;
-		num |= fgetc(finp);
-		fprintf(fout, "%s %d\n", (char*)str, num);
+		
 	}
-	fclose(finp);
-	fclose(fout);
+	if(recv(sock, (void*)buffer, ntohs(length),0) < 0){
+		perror("ERRORE! Ricezione del comando non riuscita");
+	}
 
-
-
-}*/
-void sendFile(char* fileName, char* buf, int s, char* mode){
-	
-	
+	return;
 }
