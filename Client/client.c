@@ -1,5 +1,5 @@
 #include "client.h"
-
+#include "utility.h"
 int main(int argc, char** argv){
 
 	int sock;
@@ -87,9 +87,22 @@ void getCmd(int sock, struct sockaddr_in server_addr, char* fileName){
 	printf("Richiesta file %s al server in corso.\n", fileName);
 	char buf[BUFFER_SIZE];
 
-	printf("Trasferimento del file in corso.\n");
-	int len = sendto(sock, buf, BUFFER_SIZE, 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	// Invio della modalità scelta
+	sendString(sock, currentMode);
 
+
+	// Ricezione la grandezza del file richiesto
+	unsigned int size = receiveSize(sock);
+
+	
+	printf("Trasferimento del file in corso.\n");
+	// Ricezione del file
+
+	if(!strcmp(currentMode, "txt")){	
+		char* file = receiveFileTxt(sock, size);
+	}else if(!strcmp(currentMode, "bin")){
+		FILE* file = receiveFileBin(sock, size);
+	}
 	printf("Trasferimento completato.\n");
 
 	printf("Salvataggio %s completato.\n", fileName);
