@@ -14,11 +14,12 @@
 #define BUFFER_SIZE 1024
 
 
-void initMessage();
+void initMessage(int, const char*, const char*);
 void helpCmd();
-void getCmd();
-void modeCmd();
+void getCmd(int, char*, char*);
+void modeCmd(char*, char*);
 void quitCmd();
+void sendCommand(int, char*);
 
 
 

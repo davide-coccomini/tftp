@@ -7,10 +7,9 @@ int main(int argc, char** argv){
 	sleep(1);
 
 	char cmd[CMD_SIZE];
-	char* command = NULL;
 
 
-	pthread_t thread;
+	//pthread_t thread;
 
 
 
@@ -33,12 +32,13 @@ int main(int argc, char** argv){
 	
 	char* transferMode = "txt";
 
-	initMessage(argv[1], argv[2]);	
+	initMessage(sock, argv[1], argv[2]);	
 	
 
 	while(1){
 		memset(&cmd, 0, CMD_SIZE);
 		scanf("%s", cmd);
+		sendCommand(sock, cmd);
 		if(!strcmp(cmd, "!help\0")){
 			helpCmd();
 		}else if(!strcmp(cmd, "!mode\0")){
@@ -47,8 +47,9 @@ int main(int argc, char** argv){
 			
 			modeCmd(mode, transferMode);
 		}else if(!strcmp(cmd, "!get\0")){
-			char* fileName = argv[1];
-			getCmd(sock, server_addr, fileName);
+			char fileName[BUFFER_SIZE];
+			scanf("%s", fileName);
+			getCmd(sock, fileName, transferMode);
 		}else if(!strcmp(cmd, "!quit\0")){
 			quitCmd(sock);
 		}
@@ -56,9 +57,13 @@ int main(int argc, char** argv){
 }
 
 
-void initMessage(const char* server, const char* port){
+void initMessage(int sock, const char* server, const char* port){
 	printf("Connessione al server %s alla porta %s effettuata con successo\n", server,port);
 	helpCmd();
+	char cmd[CMD_SIZE];
+	memset(&cmd, 0, CMD_SIZE);
+	memcpy(cmd,"!connect\0",CMD_SIZE);
+	sendCommand(sock,cmd);
 }
 
 void helpCmd(){
@@ -83,38 +88,74 @@ void modeCmd(char* mode, char* currentMode){
 	
 }
 
-void getCmd(int sock, struct sockaddr_in server_addr, char* fileName){
+void getCmd(int sock, char* fileName, char* transferMode){
 	printf("Richiesta file %s al server in corso.\n", fileName);
-	char buf[BUFFER_SIZE];
+	//char buf[BUFFER_SIZE];
 
 	// Invio della modalità scelta
-	sendString(sock, currentMode);
+	printf("\nInvio modalità\n");
+	sendString(sock, transferMode);
 
+	//Ricezione dell'ACK per conferma ricezione mode
+	printf("\nRIcezione ACK modalità\n");
+	receiveACK(sock);	
+
+	// Invio del nome del file
+	printf("\nInvio nome file\n");
+	sendString(sock, fileName);
 
 	// Ricezione la grandezza del file richiesto
+	printf("\nRicezione grandezza\n");
 	unsigned int size = receiveSize(sock);
 
 	
-	printf("Trasferimento del file in corso.\n");
+	printf("\nTrasferimento del file in corso.\n");
 	// Ricezione del file
 
-	if(!strcmp(currentMode, "txt")){	
-		char* file = receiveFileTxt(sock, size);
-	}else if(!strcmp(currentMode, "bin")){
-		FILE* file = receiveFileBin(sock, size);
-	}
-	printf("Trasferimento completato.\n");
 
-	printf("Salvataggio %s completato.\n", fileName);
+
+	if(!strcmp(transferMode, "txt")){	
+		int transfers = ((int)(size/512))+1;
+		uint16_t length = 0;
+		char* fileBuffer = malloc(ntohs(size));
+		char* buffer;
+		while(size > 0){
+			buffer = receiveFileTxt(sock);
+			fileBuffer = buffer;
+			fileBuffer += length;
+			size -= length;
+			memset(&buffer, 0, BUFFER_SIZE);
+		}
+		printf("\nSalvataggio %s completato. (%d/%d)\n", fileName, transfers, transfers);
+	}else if(!strcmp(transferMode, "bin")){
+		//FILE* file = receiveFileBin(sock, size);
+	}
+	printf("\nTrasferimento completato.\n");
+
+
 
 }
 
 void quitCmd(int sock){
 	close(sock);
-	printf("Disconnessione effettuata\n");
+	printf("\nDisconnessione effettuata\n");
 	exit(0);
 }
 
+
+void sendCommand(int sock, char* cmd){
+	uint16_t length = htons(strlen(cmd)+1);
+	if(send(sock, (void*)&length, sizeof(uint16_t),0)<0){
+		perror("\nERRORE! Invio della lunghezza del comando non riuscita");
+		return;
+	}
+	
+
+	if(send(sock, (void*)cmd, strlen(cmd)+1, 0) < 0){
+		perror("\nERRORE! Invio del comando non riuscito");
+		return;
+	}
+}	
 
 
 

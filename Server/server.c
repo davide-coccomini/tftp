@@ -12,7 +12,7 @@ int main(int argc, char** argv){
 	}
 	
 	char* directory = argv[2]; // Directory dei files
-
+	printf("\nDirectory files: %s", directory);
 
 	fd_set master;
 	fd_set read_fds;
@@ -20,13 +20,12 @@ int main(int argc, char** argv){
 	
 
 
-	int listener, new_sock;
+	int listener;
 
 	struct sockaddr_in my_addr;
 	struct sockaddr_in client_addr;
-	int addrlen = sizeof(client_addr);
+	unsigned int addrlen = sizeof(client_addr);
 	char buf[BUFFER_SIZE];
-	int nbytes;
 	int i;
 	int newfd;
 
@@ -75,28 +74,28 @@ int main(int argc, char** argv){
 					fdmax = newfd;
 				}
 			}else{ // Il descrittore pronto è un altro socket
-				printf("\nConnessione in ingresso accettata\n");
-				memset(buffer, 0, BUFFER_SIZE);
-				cmd(i, buffer, &master);
+				memset(buf, 0, BUFFER_SIZE);
+				cmd(i, buf, &master);
 
-				if(!strcmp(buffer, "!help\0")){
-					printf("Ricezione comando help");
-				}else if(!strcmp(buffer, "!mode\0")){
-					printf("Ricezione comando mode");
-				}else if(!strcmp(buffer, "!get\0")){
-					printf("Ricezione comando get");
-				}else if(!strcmp(buffer, "!quit\0")){
-					printf("Ricezione comando quit");
+				if(!strcmp(buf, "!help\0")){
+					printf("\nRicezione comando help\n");
+				}else if(!strcmp(buf, "!mode\0")){
+					printf("\nRicezione comando mode\n");
+				}else if(!strcmp(buf, "!get\0")){
+					printf("\nRicezione comando get\n");
+					getCmd(i, directory);
+				}else if(!strcmp(buf, "!quit\0")){
+					printf("\nRicezione comando quit\n");
+					close(i);
+					FD_CLR(i, &master);
+				}else{
+					printf("\nConnessione in ingresso\n");
 				}
-				
-				nbytes = recvfrom(i, buf, sizeof(buf), 0, (struct sockaddr*)&client_addr, &addrlen);
-				close(i);
-				FD_CLR(i, &master);
 			}
 		 }
 		}	
 	}
-
+ close(listener);
 }
 void cmd(int sock, char* buffer, fd_set* master){
 	uint16_t length;
@@ -105,17 +104,67 @@ void cmd(int sock, char* buffer, fd_set* master){
 	memset(&length, 0, sizeof(uint16_t));
 
 	ret = recv(sock, (void*)&length, sizeof(uint16_t),0);
-
 	if(ret < 0){
-		perror("ERRORE! Ricezione della lunghezza del comando non riuscita");
+		perror("ERRORE! Ricezione della lunghezza del comando non riuscita\n");
 		return;
-	}else if(!ret){
-	
-		
 	}
 	if(recv(sock, (void*)buffer, ntohs(length),0) < 0){
-		perror("ERRORE! Ricezione del comando non riuscita");
+		perror("ERRORE! Ricezione del comando non riuscita\n");
 	}
 
 	return;
 }
+
+
+void getCmd(int sock, char* directory){
+	// Ricezione della modalità di trasferimento
+	char* mode = receiveString(sock);
+	printf("\nRicezione mode %s", mode);
+	//Invio del segnale di ACK per conferma
+	sendACK(sock);
+	printf("\nInvio ACK");
+	//Ricezione del nome del file richiesto
+	char* fileName = receiveString(sock);
+	printf("\nRicezione filename %s", fileName);
+
+	char* path = strcat(directory,"/");
+	path = strcat(path,fileName);
+
+	FILE* fp;
+	printf("\nTentativo di aprire %s", path);
+	fp = fopen(path, "r");
+	printf("\nFile aperto\n");
+	if(fp == NULL){
+		printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
+		return;
+	}
+	printf("\nLettura del file %s riuscita", fileName);
+
+	fseek(fp, 0 , SEEK_END);
+  	unsigned int fileSize = ftell(fp);
+  	fseek(fp, 0 , SEEK_SET);
+	
+	// Invio della dimensione del file richiesto
+	printf("\nInvio dimensione del file %d", fileSize);
+	sendSize(sock, fileSize);
+
+	int transfers = ((int)(fileSize/512))+1;
+
+
+	if(!strcmp(mode, "txt")){	
+		char buffer[FILE_BUFFER_SIZE];
+		int i, fsize;
+		for(i=1; (fsize = fread(buffer, sizeof(char), sizeof(buffer), fp) > 0); i++){
+			printf("\nInvio file %d/%d",i,transfers);
+			sendFileTxt(sock, buffer);
+		}
+	}else if(!strcmp(mode, "bin")){
+
+
+	}
+
+
+	fclose(fp);
+}
+
+

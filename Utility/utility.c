@@ -73,26 +73,18 @@ void sendFileTxt(int sock, char* buffer){
 
 }
 
-char* receiveFileTxt(int sock, unsigned int size){
-	int transfers = ((int)(size/512))+1;
+char* receiveFileTxt(int sock){
 	uint16_t length;
-	char* fileBuffer = malloc(ntohs(size));
-	while(size > 0){
-		char* buffer;
-		while(recv(sock, &length, sizeof(uint16_t),0) < 0){
-			perror("ERRORE! Ricezione della lunghezza dei dati non riuscita");
-		}
-		buffer = malloc(ntohs(length));
-		memset(buffer, 0, ntohs(length));
-		while(recv(sock, buffer, ntohs(length),0) < 0){
-			perror("ERRORE! Ricezione del file non riuscita");
-		}
-		fileBuffer = buffer;
-		fileBuffer += length;
-		size -= length;
+	char* buffer;
+	while(recv(sock, &length, sizeof(uint16_t),0) < 0){
+		perror("ERRORE! Ricezione della lunghezza dei dati non riuscita");
 	}
-	printf("Trasferimento effettuato con successo (%d/%d)", transfers, transfers);
-	return fileBuffer;
+	buffer = malloc(ntohs(length));
+	memset(buffer, 0, ntohs(length));
+	while(recv(sock, buffer, ntohs(length),0) < 0){
+		perror("ERRORE! Ricezione del file non riuscita");
+	}
+	return buffer;
 }
 
 
@@ -123,3 +115,18 @@ FILE* receiveFileBin(int sock, unsigned int size){
 }
 
 
+void sendACK(int sock){
+	unsigned int ack = 555;
+	while(send(sock, &ack, sizeof(unsigned int), 0) < 0){
+		perror("ERRORE: Invio dell'ACK non riuscito");
+	}
+}
+
+unsigned int receiveACK(int sock){
+	unsigned int ack;
+	while(recv(sock, &ack, sizeof(unsigned int), 0) < 0){
+		perror("ERRORE: Ricezione dell'ACK non riuscita");
+	}
+	return ack;
+
+}

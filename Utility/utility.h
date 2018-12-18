@@ -14,9 +14,12 @@ void sendSize(int, unsigned int);
 unsigned int receiveSize(int);
 
 void sendFileTxt(int, char*);
-char* receiveFileTxt(int, unsigned int);
+char* receiveFileTxt(int);
 
 void sendFileBin(int, FILE*);
 FILE* receiveFileBin(int, unsigned int);
+
+void sendACK(int);
+unsigned int receiveACK(int);
 
 #endif
