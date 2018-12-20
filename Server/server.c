@@ -83,13 +83,13 @@ int main(int argc, char** argv){
 					printf("\nRicezione comando mode\n");
 				}else if(!strcmp(buf, "!get\0")){
 					printf("\nRicezione comando get\n");
-					getCmd(i, directory);
+					getCmd(i, directory, my_addr);
 				}else if(!strcmp(buf, "!quit\0")){
 					printf("\nRicezione comando quit\n");
 					close(i);
 					FD_CLR(i, &master);
 				}else{
-					printf("\nConnessione in ingresso\n");
+					//printf("\nConnessione in ingresso\n");
 				}
 			}
 		 }
@@ -116,41 +116,47 @@ void cmd(int sock, char* buffer, fd_set* master){
 }
 
 
-void getCmd(int sock, char* directory){
+void getCmd(int sock, char* directory, struct sockaddr_in server_addr){
 	
 	char* buffer = receiveBuffer(sock);
+	
 	uint16_t opcode, errorCode;
-    char* fileName;
-	char* mode;
-	memcpy(opcode, (uint16_t*)&buffer, 2);
+    char fileName[BUFFER_SIZE];
+	char mode[BUFFER_SIZE];
+	int position = 0;
+
+	memcpy(&opcode, (uint16_t*)&buffer, 2);
 	opcode = ntohs(opcode);
+	printf("\n opcode ricevuto:: %d\n",opcode);
+	// Errore
 	if(opcode != 1){
 		opcode = htons(5);
 		errorCode = htons(1);
 		char* message = "Richiesta invalida";
 	
-		char* errorBuffer;	
-		char* bufferCopy = errorBuffer;
-		
+		char bufferError[BUFFER_SIZE];	
+	
+		//unsigned int zero = 0;
 
-		memcpy(buffer, (uint16_t*)&opcode, 2);
-		buffer += 2;
-		memcpy(buffer, (uint16_t*)&errorCode, 2);
-		buffer += 2;
-		strcpy(buffer, message);
-		buffer += strlen(message)+1;
-		memcpy(buffer, 0, 1);
-
-		sendBuffer(sock, bufferCopy);
+		memcpy(bufferError, (uint16_t*)&opcode, 2);
+		position += 2;
+		memcpy(bufferError+position, (uint16_t*)&errorCode, 2);
+		position += 2;
+		strcpy(bufferError+position, message);
+		position += strlen(message)+1;
+		//memcpy(buffer, zero, 1);
+	
+		sendBuffer(sock, bufferError, position, server_addr);
 		return;
 	}
 
+	printf("\ntest\n");
 	
-
 	strcpy(fileName, buffer+2);
+	printf("\nnome ricevuto: %s\n", fileName);
 	strcpy(mode, buffer + strlen(fileName)+1);
-	
-	printf("\nRicezione filename %s", fileName);
+	printf("\nmode ricevuto: %s\n", mode);
+	printf("\nRicezione filename %s\n", fileName);
 
 	char* path = strcat(directory,"/");
 	path = strcat(path, fileName);
@@ -160,17 +166,18 @@ void getCmd(int sock, char* directory){
 	fp = fopen(path, "r");
 	printf("\nFile aperto");
 	if(fp == NULL){
+		position = 0;
 		printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
 		opcode = htons(5);
 		char* message = "File non trovato";
 
-		char* errorBuffer;	
-		char* bufferCopy = errorBuffer;		
+		char errorBuffer[BUFFER_SIZE];	
 
-		memcpy(buffer, (uint16_t*)&opcode, 2);
-		buffer += 2;
-		strcpy(buffer, message);
-		sendBuffer(sock, buffer);
+		memcpy(errorBuffer, (uint16_t*)&opcode, 2);
+		position += 2;
+		strcpy(errorBuffer+position, message);
+
+		sendBuffer(sock, errorBuffer, position, server_addr);
 		return;
 	}
 	printf("\nLettura del file %s riuscita", fileName);
@@ -182,35 +189,41 @@ void getCmd(int sock, char* directory){
 		fseek(fp, 0 , SEEK_END);
 	  	unsigned int length = ftell(fp);
 	  	fseek(fp, 0 , SEEK_SET);
-		nbytes = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-		char* fileBuffer[nbytes];
+		unsigned int nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
+		char bufferFile[nchars];
 
 		// Trasferimenti
 		while(length > 0){
 			// Lettura ed invio di un blocco
-			fseek(fp, nbytes, fp);
-			fread(bufferFile, 1, nbytes, fp);
+			//fseek(fp, nbytes, fp);
+			position = 0;
+			int k;
+			for(k=0; k<nchars; k++){		
+				fscanf(fp, "%s", bufferFile+k);
+			}
 			
 			char bufferPacket[BUFFER_SIZE];
-			char* bufferCopy = bufferPacket;
+			
 			
 			opcode = htons(3);
 			memcpy(bufferPacket, (uint16_t*)&opcode, 2);
-			bufferPacket += 2;
+			position += 2;
 
-			strcpy(bufferPacket, bufferFile);
-			bufferPacket += nbytes;
+			strcpy(bufferPacket + position, bufferFile);
+			position += nchars;
 			
-			sendBuffer(sock, bufferCopy);
+			sendBuffer(sock, bufferPacket, position, server_addr);
 			
 			// Attesa dell'ACK
 			char* bufferAck = receiveBuffer(sock);
-		
+			if(!bufferAck){
+				printf("\nERRORE! Ack invalido");	
+				return;		
+			}
 			
 			// Passaggio al blocco successivo
-			length -= nbytes;
-			nbytes = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-			char* fileBuffer[nbytes];
+			length -= nchars;
+			nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
 			block++;			
 		}
 	}else if(!strcmp(mode, "octet")){

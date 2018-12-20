@@ -44,16 +44,12 @@ int main(int argc, char** argv){
 		}else if(!strcmp(cmd, "!mode\0")){
 			char* mode = argv[1];
 			scanf("%s",mode);
-			
 			modeCmd(mode, transferMode);
 		}else if(!strcmp(cmd, "!get\0")){
 			char fileName[BUFFER_SIZE], localName[BUFFER_SIZE];
 			memset(&fileName, 0, BUFFER_SIZE);
 			scanf("%s %s", fileName, localName);
-
-			printf("FILENAME: %s", fileName);
-			getCmd(sock, fileName, transferMode);
-			printf("wewewew");
+			getCmd(sock, fileName, transferMode, server_addr);
 		}else if(!strcmp(cmd, "!quit\0")){
 			quitCmd(sock);
 		}
@@ -79,88 +75,95 @@ void helpCmd(){
 }
 
 void modeCmd(char* mode, char* currentMode){
-	if(!strcmp(mode, "netascii")){	
+	if(!strcmp(mode, "txt")){	
 		printf("Modo di trasferimento testuale configurato.\n");
-	}else if(!strcmp(mode, "octet")){
+		currentMode = "netascii\0";
+	}else if(!strcmp(mode, "bin")){
 		printf("Modo di trasferimento binario configurato.\n");
+		currentMode = "octet\0";
 	}else{
 		printf("ERRORE: Modo di trasferimento non previsto.\n");
-		return;
 	}
- 
-	currentMode = mode;
-	
+ return;	
 }
 
-void getCmd(int sock, char* fileName, char* transferMode){
+void getCmd(int sock, char* fileName, char* transferMode, struct sockaddr_in server_addr){
 	printf("Richiesta file %s al server in corso.\n", fileName);
-	char buf[BUFFER_SIZE];
-
+	char buffer[BUFFER_SIZE];
+	memset(&buffer, 0, BUFFER_SIZE);
+	int position = 0;
 	printf("\nPreparazione del buffer da inviare\n");
 	uint16_t errorCode;
 	uint16_t opcode = htons(1);
 	
-	uint16_t fileNameLength = strlen(fileName)+1;
-	char* bufferCopy = buffer;
+	fileName[strlen(fileName)+1]=0;
+	uint16_t fileNameLength = strlen(fileName);
+
 
 	memcpy(buffer, (uint16_t*)&opcode, 2);
-	buffer += 2;
 
-	strcpy(buffer, fileName);
-	buffer += fileNameLength;
+	position += 2;
 
-	memcpy(buffer, 0, 1);
-	buffer++;
+	strcpy(buffer + position, fileName);
+	position += fileNameLength+3;
+	
+	//memcpy(buffer + position, 0, 1);
+	//position++;
+	
+	strcpy(buffer + position, transferMode);
+	position += strlen(transferMode)+1;
 
-	strcpy(buffer, &transferMode);
-	buffer += 3;
 
-	memcpy(buffer, 0, 1);
-		
-	buffer = bufferCopy;
+	//memcpy(buffer + position, 0, 1);
+	printf("\nlength buffer %d\n", (int)strlen(buffer));
 	printf("\nInvio richiesta di download al server\n");
-	sendBuffer(sock, buffer);
+	sendBuffer(sock, buffer, position, server_addr);
 	
 	char* file = NULL;
 	while(1){	
-		// Ricezione del blocco
-		memset(&buffer, 0, BUFFER_SIZE);
-		buffer = receiveBuffer(sock);
-		memcpy(opcode, (uint16_t*)&buffer, 2);
-		buffer += 2;
-		opcode = ntohs(opcode);
 
+		// Ricezione del blocco
+		char* bufferPacket;
+		position = 0;
+		memset(&bufferPacket, 0, BUFFER_SIZE);
+	
+		bufferPacket = receiveBuffer(sock);
+		memcpy(&opcode, (uint16_t*)&bufferPacket, 2);
+
+		opcode = ntohs(opcode);
+		
 		// Errore
 		if(opcode == 5){ 
-			memcpy(errorCode, buffer);
-			buffer += 2;
-			char* message;
+			memcpy(&errorCode, bufferPacket, 2);
+			position += 2;
+			char message[BUFFER_SIZE];
 			strcpy(message, buffer);
 			printf("\nERRORE! (%d) %s", errorCode, message);
 			return;
 		}
 	
 		// Lettura del blocco
+		position = 0;
 		uint16_t block;
-		memcpy(block, buffer);
+		memcpy(&block, bufferPacket, 2);
 		block = ntohs(block);
-		buffer += 2;
-		char* data;
-		strcpy(data, buffer);
+		position += 2;
+		char data[BUFFER_SIZE];
+		strcpy(data, bufferPacket);
 		strcat(data, file);
 		
 		printf("\nRicezione del blocco %d effettuata", block);		
 		
 		// Invio dell'ACK		
+		position = 0;
 		char bufferAck[BUFFER_SIZE];
-		char* bufferCopy = bufferAck;
 		opcode = htons(4);
 		block = htons(block);
-		memcpy(bufferAck, (uint16_t*)&opcode, 2);
-		bufferAck += 2;
-		memcpy(bufferAck, (uint16_t*)&block, 2);
-		bufferAck += 2;
-		sendBuffer(bufferCopy);
+		memcpy(bufferAck + position, (uint16_t*)&opcode, 2);
+		position += 2;
+		memcpy(bufferAck + position, (uint16_t*)&block, 2);
+		position += 2;
+		sendBuffer(sock, bufferAck, position, server_addr);
 	
 		// Fine dei trasferimenti
 		if(strlen(data)<FILE_BUFFER_SIZE){

@@ -16,7 +16,7 @@
 
 void initMessage(int, const char*, const char*);
 void helpCmd();
-void getCmd(int, char*, char*);
+void getCmd(int, char*, char*, struct sockaddr_in);
 void modeCmd(char*, char*);
 void quitCmd();
 void sendCommand(int, char*);

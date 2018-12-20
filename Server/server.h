@@ -15,7 +15,7 @@
 
 
 void cmd(int, char*, fd_set*);
-void getCmd(int, char*);
+void getCmd(int, char*, struct sockaddr_in);
 
 #endif
 
