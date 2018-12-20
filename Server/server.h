@@ -12,7 +12,7 @@
 
 
 #define BUFFER_SIZE 1024
-#define FILE_BUFFER_SIZE 512
+
 
 void cmd(int, char*, fd_set*);
 void getCmd(int, char*);

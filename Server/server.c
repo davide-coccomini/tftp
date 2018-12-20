@@ -117,54 +117,111 @@ void cmd(int sock, char* buffer, fd_set* master){
 
 
 void getCmd(int sock, char* directory){
-	// Ricezione della modalità di trasferimento
-	char* mode = receiveString(sock);
-	printf("\nRicezione mode %s", mode);
-	//Invio del segnale di ACK per conferma
-	sendACK(sock);
-	printf("\nInvio ACK");
-	//Ricezione del nome del file richiesto
-	char* fileName = receiveString(sock);
+	
+	char* buffer = receiveBuffer(sock);
+	uint16_t opcode, errorCode;
+    char* fileName;
+	char* mode;
+	memcpy(opcode, (uint16_t*)&buffer, 2);
+	opcode = ntohs(opcode);
+	if(opcode != 1){
+		opcode = htons(5);
+		errorCode = htons(1);
+		char* message = "Richiesta invalida";
+	
+		char* errorBuffer;	
+		char* bufferCopy = errorBuffer;
+		
+
+		memcpy(buffer, (uint16_t*)&opcode, 2);
+		buffer += 2;
+		memcpy(buffer, (uint16_t*)&errorCode, 2);
+		buffer += 2;
+		strcpy(buffer, message);
+		buffer += strlen(message)+1;
+		memcpy(buffer, 0, 1);
+
+		sendBuffer(sock, bufferCopy);
+		return;
+	}
+
+	
+
+	strcpy(fileName, buffer+2);
+	strcpy(mode, buffer + strlen(fileName)+1);
+	
 	printf("\nRicezione filename %s", fileName);
 
 	char* path = strcat(directory,"/");
-	path = strcat(path,fileName);
+	path = strcat(path, fileName);
 
 	FILE* fp;
 	printf("\nTentativo di aprire %s", path);
 	fp = fopen(path, "r");
-	printf("\nFile aperto\n");
+	printf("\nFile aperto");
 	if(fp == NULL){
 		printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
+		opcode = htons(5);
+		char* message = "File non trovato";
+
+		char* errorBuffer;	
+		char* bufferCopy = errorBuffer;		
+
+		memcpy(buffer, (uint16_t*)&opcode, 2);
+		buffer += 2;
+		strcpy(buffer, message);
+		sendBuffer(sock, buffer);
 		return;
 	}
 	printf("\nLettura del file %s riuscita", fileName);
 
-	fseek(fp, 0 , SEEK_END);
-  	unsigned int fileSize = ftell(fp);
-  	fseek(fp, 0 , SEEK_SET);
-	
-	// Invio della dimensione del file richiesto
-	printf("\nInvio dimensione del file %d", fileSize);
-	sendSize(sock, fileSize);
 
-	int transfers = ((int)(fileSize/512))+1;
+	if(!strcmp(mode, "netascii")){	
+		// Lettura della lunghezza del contenuto del file
+		uint16_t block = 1;
+		fseek(fp, 0 , SEEK_END);
+	  	unsigned int length = ftell(fp);
+	  	fseek(fp, 0 , SEEK_SET);
+		nbytes = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
+		char* fileBuffer[nbytes];
 
+		// Trasferimenti
+		while(length > 0){
+			// Lettura ed invio di un blocco
+			fseek(fp, nbytes, fp);
+			fread(bufferFile, 1, nbytes, fp);
+			
+			char bufferPacket[BUFFER_SIZE];
+			char* bufferCopy = bufferPacket;
+			
+			opcode = htons(3);
+			memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+			bufferPacket += 2;
 
-	if(!strcmp(mode, "txt")){	
-		char buffer[FILE_BUFFER_SIZE];
-		int i, fsize;
-		for(i=1; (fsize = fread(buffer, sizeof(char), sizeof(buffer), fp) > 0); i++){
-			printf("\nInvio file %d/%d",i,transfers);
-			sendFileTxt(sock, buffer);
+			strcpy(bufferPacket, bufferFile);
+			bufferPacket += nbytes;
+			
+			sendBuffer(sock, bufferCopy);
+			
+			// Attesa dell'ACK
+			char* bufferAck = receiveBuffer(sock);
+		
+			
+			// Passaggio al blocco successivo
+			length -= nbytes;
+			nbytes = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
+			char* fileBuffer[nbytes];
+			block++;			
 		}
-	}else if(!strcmp(mode, "bin")){
-
+	}else if(!strcmp(mode, "octet")){
+		// OPCODE (3)
 
 	}
 
 
 	fclose(fp);
 }
+
+
 
 

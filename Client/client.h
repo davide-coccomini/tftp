@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #define CMD_SIZE 50
-#define BUFFER_SIZE 1024
+
 
 
 void initMessage(int, const char*, const char*);
