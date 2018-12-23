@@ -3,6 +3,7 @@
 
 #define BUFFER_SIZE 1024
 #define FILE_BUFFER_SIZE 512
+#define PACKET_SIZE 516
 
 
 #include <string.h>
@@ -11,8 +12,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-void sendBuffer(int, char*);
-char* receiveBuffer(int);
 
+struct result {
+	int length;
+	char* buffer;
+	struct sockaddr_in client_addr;
+};
 
+void sendBuffer(int, void*, int, struct sockaddr_in);
+struct result receiveBuffer(int);
 #endif

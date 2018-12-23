@@ -100,7 +100,10 @@ int main(int argc, char** argv){
 			strcat(path, "/");
 			strcat(path, fileName);
 			FILE* fp;
-			fp = fopen(path, "r");
+			if(!strcmp(mode, "netascii\0"))
+				fp = fopen(path, "r");
+			else
+				fp = fopen(path, "rb");
 			if(fp == NULL){
 				position = 0;
 				printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
@@ -129,19 +132,12 @@ int main(int argc, char** argv){
 			
 			if(!strcmp(mode, "netascii\0")){	
 				char bufferFile[FILE_BUFFER_SIZE];
-				//fscanf(fp, "%s", bufferFile);
-
-				fread(bufferFile, nchars, 1, fp);
-
-					int m;
-				for(m=0; m<sizeof(bufferFile);m++){
-					if(m<4)
-						printf("\nlettera:%d %d\n",m,bufferFile[m]);
-					else
-						printf("\nlettera:%d %c\n",m,bufferFile[m]);
+				
+				int k;
+				for(k = 0; k<nchars; k++){
+					bufferFile[k] = fgetc(fp);
 				}
 
-			
 
 				// Lettura ed invio di un blocco
 				position = 0;
@@ -162,44 +158,11 @@ int main(int argc, char** argv){
 		
 			
 				memset(bufferFile, 0, FILE_BUFFER_SIZE);
-				FD_CLR(listener, &read_fds);		
+			
 			}else{
+				unsigned char bufferFile[FILE_BUFFER_SIZE];
+				fread(bufferFile, nchars, 1, fp);
 
-			}
-	 
-		 printf("\nTrasferimento del primo blocco completato\n");
-
-
-		}else{ // Il descrittore pronto è un altro socket
-			printf("\nRicezione dell'ACK\n");
-		// Attesa dell'ACK
-			char* bufferAck = ret.buffer;
-			if(!bufferAck){
-				printf("\nERRORE! ACK invalido");	
-				
-			}
-			struct request* r = findRequest(i);
-			removeRequest(i);
-
-			if(r->packets > 0){
-				printf("\nCi sono ancora dati da trasferire\n");
-				unsigned int nchars = (r->packets > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:r->packets;
-				char bufferFile[FILE_BUFFER_SIZE];
-				r->block++;
-				
-				addRequest(r->sock, r->fp, r->packets-nchars, r->mode, r->block);		
-				fscanf(r->fp, "%s", bufferFile);
-				
-				int m;
-				for(m=0; m<sizeof(bufferFile);m++){
-					if(m<4)
-						printf("\nlettera:%d %d\n",m,bufferFile[m]);
-					else
-						printf("\nlettera:%d %c\n",m,bufferFile[m]);
-				}
-
-				//fread(bufferFileComplete, length, 1, fp);
-	
 				// Lettura ed invio di un blocco
 				position = 0;
 
@@ -209,15 +172,83 @@ int main(int argc, char** argv){
 				opcode = htons(3);
 				memcpy(bufferPacket, (uint16_t*)&opcode, 2);
 				position += 2;
-				uint16_t blockSend = htons(r->block);
+				uint16_t blockSend = htons(1);
 				memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
 				position += 2;
 
-				strcpy(bufferPacket + position, bufferFile);
+				memcpy(bufferPacket + position, bufferFile, nchars);
 				position += nchars;
-				sendBuffer(i, bufferPacket, position, client_addr);
-
+				sendBuffer(newfd, bufferPacket, position, client_addr);
+			
 				memset(bufferFile, 0, FILE_BUFFER_SIZE);
+				
+			}
+	 	 FD_CLR(listener, &read_fds);	
+		 printf("\nTrasferimento del primo blocco completato\n");
+
+
+		}else{ // Il descrittore pronto è un altro socket
+			printf("\nRicezione dell'ACK\n");
+			// Attesa dell'ACK
+			char* bufferAck = ret.buffer;
+			if(!bufferAck){
+				printf("\nERRORE! ACK invalido");	
+				
+			}
+			struct request* r = findRequest(i);
+			removeRequest(i);
+
+			if(r->packets > 0){
+				
+				unsigned int nchars = (r->packets > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:r->packets;
+				
+				r->block++;
+				printf("\nInvio del blocco %d\n", r->block);
+				addRequest(r->sock, r->fp, r->packets-nchars, r->mode, r->block);		
+	
+				
+				
+				// Lettura ed invio di un blocco
+				position = 0;
+				
+			
+				opcode = htons(3);
+				uint16_t blockSend = htons(r->block);
+				if(!strcmp(r->mode, "netascii\0")){	
+				
+					char bufferPacket[PACKET_SIZE];
+					char bufferFile[FILE_BUFFER_SIZE];
+
+					int k;
+					for(k = 0; k<nchars; k++){
+						bufferFile[k] = fgetc(r->fp);
+					}
+					memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+					position += 2;
+					memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
+					position += 2;
+
+					strcpy(bufferPacket + position, bufferFile);
+					position += nchars;
+					sendBuffer(i, bufferPacket, position, client_addr);
+
+					memset(bufferFile, 0, FILE_BUFFER_SIZE);
+				}else{
+				
+					unsigned char bufferPacket[PACKET_SIZE];
+					unsigned char bufferFile[FILE_BUFFER_SIZE];
+					fread(bufferFile, nchars, 1, r->fp);
+					memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+					position += 2;
+					memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
+					position += 2;
+
+					memcpy(bufferPacket + position, bufferFile, nchars);
+					position += nchars;
+					sendBuffer(i, bufferPacket, position, client_addr);
+
+					memset(bufferFile, 0, FILE_BUFFER_SIZE);
+				}
 				FD_SET(i, &read_fds);
 				i--;
 			}else{
@@ -233,192 +264,5 @@ int main(int argc, char** argv){
 	}
  close(listener);
 }
-/*
-void getCmd(int sock, char* directory, struct sockaddr_in server_addr){
-
-	struct result r = receiveBuffer(sock);	
-	struct sockaddr_in client_addr = r.client_addr;
-	char* buffer = r.buffer;
-	printf("\nbuffer ricevuto %s\n",buffer);
-	uint16_t opcode, errorCode;
-    char fileName[BUFFER_SIZE];
-	char mode[BUFFER_SIZE];
-	int position = 0;
-	
-	memcpy(&opcode, buffer, 2);
-	opcode = ntohs(opcode);
-	// Errore
-	if(opcode != 1){
-		opcode = htons(5);
-		errorCode = htons(1);
-		char* message = "Richiesta invalida";	
-		char bufferError[BUFFER_SIZE];	
-	
-		memcpy(bufferError, (uint16_t*)&opcode, 2);
-		position += 2;
-		memcpy(bufferError+position, (uint16_t*)&errorCode, 2);
-		position += 2;
-		strcpy(bufferError+position, message);
-		position += strlen(message)+1;
-
-	
-		sendBuffer(sock, bufferError, position, client_addr);
-		return;
-	}
-
-	
-	strcpy(fileName, buffer+2);
-	strcpy(mode, buffer + (int)strlen(fileName)+3);
-	printf("\nRichiesta di download del file %s in modalità %s\n", fileName, mode);
-	char* path = malloc(strlen(directory)+strlen(fileName)+2);
-	strcpy(path, directory);
-	strcat(path, "/");
-	strcat(path, fileName);
-	FILE* fp;
-	fp = fopen(path, "r");
-	if(fp == NULL){
-		position = 0;
-		printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
-		opcode = htons(5);
-		char* message = "File non trovato";
-
-		char errorBuffer[BUFFER_SIZE];	
-
-		memcpy(errorBuffer, (uint16_t*)&opcode, 2);
-		position += 2;
-		strcpy(errorBuffer+position, message);
-
-		sendBuffer(sock, errorBuffer, position, client_addr);
-		return;
-	}
-
-	printf("\nLettura del file %s riuscita\n", fileName);
-
-	if(!strcmp(mode, "netascii\0")){	
-		// Lettura della lunghezza del contenuto del file
-		uint16_t block = 1;
-		fseek(fp, 0 , SEEK_END);
-	  	unsigned int length = ftell(fp);
-	  	fseek(fp, 0 , SEEK_SET);
-
-		unsigned int nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-		char bufferFile[FILE_BUFFER_SIZE];
-		int step = 0;
-		int k=0;
-		char bufferFileComplete[length];
-		memset(bufferFileComplete, 0, length);	
-		//fscanf(fp, "%s", bufferFileComplete);
-
-		fread(bufferFileComplete, length, 1, fp);
-	
-		// Trasferimenti
-		while(length > 0){
-			printf("\nInvio del blocco %d\n", block);
-			// Lettura ed invio di un blocco
-			position = 0;
-
-			int i;
-			for(i=0;i<nchars;i++){
-				bufferFile[i]=bufferFileComplete[k];
-				k++;
-			}
-
-			
-			char bufferPacket[PACKET_SIZE];
-			
-			opcode = htons(3);
-			memcpy(bufferPacket, (uint16_t*)&opcode, 2);
-			position += 2;
-
-			uint16_t blockSend = htons(block);
-			memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
-			position += 2;
-
-			strcpy(bufferPacket + position, bufferFile);
-			position += nchars;
-			sendBuffer(sock, bufferPacket, position, client_addr);
-			
-			// Attesa dell'ACK
-			struct result r = receiveBuffer(sock);
-			char* bufferAck = r.buffer;
-			if(!bufferAck){
-				printf("\nERRORE! Ack invalido");	
-				return;		
-			}
-			
-			// Passaggio al blocco successivo
-			length -= nchars;
-			step+=nchars;
-			nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-			block++;
-			
-			memset(bufferFile, 0, FILE_BUFFER_SIZE);		
-		}
-	 printf("\nTrasferimento del file completato\n");
-	
-	}else{
-		// Lettura della lunghezza del contenuto del file
-		uint16_t block = 1;
-		fseek(fp, 0 , SEEK_END);
-	  	unsigned int length = ftell(fp);
-	  	fseek(fp, 0 , SEEK_SET);
-		unsigned int nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-		unsigned char bufferFile[FILE_BUFFER_SIZE];
-		int step = 0;
-		int k=0;
-		unsigned char bufferFileComplete[length];
-		memset(bufferFileComplete, 0, length);	
-		fread(bufferFileComplete, length, 1, fp);
-	
-		// Trasferimenti
-		while(length > 0){
-			printf("\nInvio del blocco %d\n", block);
-			// Lettura ed invio di un blocco
-			position = 0;
-
-			int i;
-			for(i=0;i<nchars;i++){
-				bufferFile[i]=bufferFileComplete[k];
-				k++;
-			}
-
-			
-			char bufferPacket[PACKET_SIZE];
-			
-			opcode = htons(3);
-			memcpy(bufferPacket, (uint16_t*)&opcode, 2);
-			position += 2;
-
-			uint16_t blockSend = htons(block);
-			memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
-			position += 2;
-
-			memcpy(bufferPacket + position, bufferFile, nchars);
-			position += nchars;
-			sendBuffer(sock, bufferPacket, position, server_addr);
-			
-			// Attesa dell'ACK
-			struct result r = receiveBuffer(sock);
-			char* bufferAck = r.buffer;
-			if(!bufferAck){
-				printf("\nERRORE! Ack invalido");	
-				return;		
-			}
-			
-			// Passaggio al blocco successivo
-			length -= nchars;
-			step+=nchars;
-			nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-			block++;
-			
-			memset(bufferFile, 0, FILE_BUFFER_SIZE);		
-		}
-	 printf("\nTrasferimento del file completato\n");
-	}
-
-	fclose(fp);
-}
-*/
-
 
 

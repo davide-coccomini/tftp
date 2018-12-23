@@ -2,43 +2,71 @@
 
 
 
+void sendBuffer(int sock, void* buffer, int position, struct sockaddr_in server_addr){
+	uint16_t lengthNet = htons(position);
+	uint16_t length = (position > sizeof(buffer))?position:sizeof(buffer);
+	unsigned int addrlen = sizeof(server_addr);
 
-void sendGetBuffer(int sock, char* buffer){
-
-	uint16_t length = strlen(buffer)+1;
-
-
-	while(sendto(sock, (void*)&length, sizeof(uint16_t),0) < 0){
-		perror("ERRORE: Lunghezza dei dati invalida");
+	
+	int nbytes = sendto(sock, &lengthNet, sizeof(uint16_t), 0, (struct sockaddr*)&server_addr, addrlen);
+;
+	if(nbytes < sizeof(uint16_t)){
+		perror("\nERRORE: Lunghezza dei dati inviati invalida\n");
 	}
+	
+	nbytes = sendto(sock, buffer, length, 0,(struct sockaddr*)&server_addr, sizeof(server_addr));
 
-	while(sendto(sock, (void*)buffer, length, 0) < 0){
-		perror("ERRORE: Invio dei dati non riuscito");
+	/*int m;
+	for(m=0; m<position;m++){
+		if(m<4 || m==position-1)
+			printf("\nlettera:%d %d\n",m,buffer[m]);
+		else
+			printf("\nlettera:%d %c\n",m,buffer[m]);
+	}
+	printf("\nlength: %d; nbytes: %d\n", position, nbytes);*/
+	if(nbytes < sizeof(buffer)){
+		perror("\nERRORE: Invio dei dati non riuscito\n");
 	}
 
 }
 
 
 
-char* receiveBuffer(int sock){
+struct result receiveBuffer(int sock){
+	struct sockaddr_in client_addr;
 	uint16_t length;
-	char* s = NULL;
+	char* buffer = NULL;
+	unsigned int addrlen = sizeof(client_addr);
+	struct result r;
+	
+	int nbytes = recvfrom(sock, &length, sizeof(uint16_t), 0, (struct sockaddr*)&client_addr, &addrlen);
+	
+	if(nbytes < sizeof(uint16_t)){
+		perror("\nERRORE: Lunghezza dei dati ricevuti invalida\n");
+	}
+	nbytes = 0;
+	length = ntohs(length);
 
+	buffer = (void *)malloc(length);
 
-	while(recvfrom(sock, (void*)&length, sizeof(uint16_t), 0) < 0){
-		perror("ERRORE: Lunghezza dei dati invalida");
+	if(buffer == NULL){
+		perror("\nERRORE! Allocazione non riuscita\n");
+		r.buffer = NULL;
+		r.length = 0;
+		return r;
 	}
 
-	if(length){
-		buffer = malloc(length);
-		memset(buffer, 0, length);
-		while(recvfrom(sock, (void*)buffer, length, 0) < 0){
-			perror("ERRORE: Ricezione dei dati non riuscita");
-		}
-	}
-	return buffer;
+	memset(buffer, 0, length);
+	
+	nbytes = recvfrom(sock, buffer, length, 0, (struct sockaddr*)&client_addr, &addrlen);
+
+
+
+	r.length = length;
+	r.buffer = buffer;
+	r.client_addr = client_addr;
+	return r;
 }
-
 
 
 

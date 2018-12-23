@@ -2,8 +2,7 @@
 
 
 
-void sendBuffer(int sock, char* buffer, int position, struct sockaddr_in server_addr){
-	printf("\nsend\n");
+void sendBuffer(int sock, void* buffer, int position, struct sockaddr_in server_addr){
 	uint16_t lengthNet = htons(position);
 	uint16_t length = (position > sizeof(buffer))?position:sizeof(buffer);
 	unsigned int addrlen = sizeof(server_addr);
@@ -34,7 +33,6 @@ void sendBuffer(int sock, char* buffer, int position, struct sockaddr_in server_
 
 
 struct result receiveBuffer(int sock){
-	printf("\nreceive\n");
 	struct sockaddr_in client_addr;
 	uint16_t length;
 	char* buffer = NULL;
@@ -49,7 +47,7 @@ struct result receiveBuffer(int sock){
 	nbytes = 0;
 	length = ntohs(length);
 
-	buffer = (char *)malloc(length);
+	buffer = (void *)malloc(length);
 
 	if(buffer == NULL){
 		perror("\nERRORE! Allocazione non riuscita\n");
@@ -63,18 +61,7 @@ struct result receiveBuffer(int sock){
 	nbytes = recvfrom(sock, buffer, length, 0, (struct sockaddr*)&client_addr, &addrlen);
 
 
-	/*	
-	
-	int m;
-	for(m=0; m<length;m++){
-		
-			printf("\nlettera: %d\n",buffer[m]);
-	}
-	printf("\n nbytes: %d; sizeofbuffer: %d\n",(int) nbytes, (int)sizeof(buffer));
-	if(nbytes < sizeof(buffer)){
-		perror("\nERRORE: Ricezione dei dati non riuscita\n");
-	}*/
-	
+
 	r.length = length;
 	r.buffer = buffer;
 	r.client_addr = client_addr;

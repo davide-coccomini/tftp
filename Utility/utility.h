@@ -19,6 +19,6 @@ struct result {
 	struct sockaddr_in client_addr;
 };
 
-void sendBuffer(int, char*, int, struct sockaddr_in);
+void sendBuffer(int, void*, int, struct sockaddr_in);
 struct result receiveBuffer(int);
 #endif

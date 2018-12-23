@@ -8,11 +8,6 @@ int main(int argc, char** argv){
 
 	char cmd[CMD_SIZE];
 
-
-	//pthread_t thread;
-
-
-
 	if(argc != 3){
 		printf("\nPer avviare il programma digita ./tftp_client <IP_server> <porta_server>\n\n");
 		return 0;
@@ -26,10 +21,7 @@ int main(int argc, char** argv){
 	server_addr.sin_port = htons(atoi(argv[2]));
 	
 	inet_pton(AF_INET, argv[1], &server_addr.sin_addr);
-	/*if(connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr))<0){
-		perror("ERRORE! Connessione non riuscita");
-		exit(1);	
-	}*/
+
 	
 	char transferMode[CMD_SIZE]; 
 	strcpy(transferMode,"octet\0");
@@ -40,8 +32,6 @@ int main(int argc, char** argv){
 	
 		memset(&cmd, 0, CMD_SIZE);
 		scanf("%s", cmd);
-		//sendCommand(sock, cmd, server_addr);
-	
 
 		if(!strcmp(cmd, "!help\0")){
 			helpCmd();
@@ -96,7 +86,6 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	printf("\nPreparazione del buffer da inviare\n");
 	uint16_t errorCode;
 	uint16_t opcode = htons(1);
-	//fileName[strlen(fileName)+1]= '\0';
 	uint16_t fileNameLength = strlen(fileName);
 
 	memcpy(buffer, (uint16_t*)&opcode, 2);
@@ -116,8 +105,13 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	
 
 	char file[BUFFER_SIZE];
+
 	FILE* fp;
-	fp = fopen(localName, "w+");
+	if(!strcmp(transferMode, "netascii\0"))
+		fp = fopen(localName, "w+");
+	else
+		fp = fopen(localName, "wb+");
+
 	while(1){	
 		char* bufferPacket = '\0';
 		// Ricezione del blocco	
@@ -150,10 +144,12 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 		
 		block = ntohs(block);
 		position += 2;
-		strcpy(file, bufferPacket+position);
+		
 		if(!strcmp(transferMode, "netascii\0")){
+			strcpy(file, bufferPacket+position);
 			fprintf(fp, "%s", file);
 		}else{
+			memcpy(file, bufferPacket+position, FILE_BUFFER_SIZE);
 			fwrite(&file,length, 1 ,fp);
 		}
 		printf("\nRicezione del blocco %d effettuata\n", block);		
@@ -186,28 +182,6 @@ void quitCmd(int sock){
 	printf("\nDisconnessione effettuata\n");
 	exit(0);
 }
-
-
-/*
-
-void sendCommand(int sock, char* cmd, struct sockaddr_in server_addr){
-
-	uint16_t length = htons(strlen(cmd)+1);
-	unsigned int addrlen = sizeof(server_addr);
-
-
-	int nbytes = sendto(sock, &length, sizeof(uint16_t), 0, (struct sockaddr*)&server_addr, addrlen);
-	
-	if(nbytes < sizeof(uint16_t)){
-		perror("\nERRORE: Lunghezza dei dati inviati invalida\n");
-	}
-	nbytes = sendto(sock, (void*)cmd, strlen(cmd)+1, 0,(struct sockaddr*)&server_addr, addrlen);
-
-	if(nbytes < ntohs(length)){
-		perror("\nERRORE: Invio dei dati non riuscito\n");
-	}
-
-}	*/
 
 
 
