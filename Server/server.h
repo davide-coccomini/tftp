@@ -9,12 +9,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <time.h>
-
+#include "request.h"
 
 #define BUFFER_SIZE 1024
 
 
-void cmd(int, char*, fd_set*);
+//int receiveCommand(int, char*);
 void getCmd(int, char*, struct sockaddr_in);
 
 #endif

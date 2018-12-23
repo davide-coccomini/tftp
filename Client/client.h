@@ -14,12 +14,12 @@
 
 
 
-void initMessage(int, const char*, const char*);
+void initMessage(int, const char*, const char*, struct sockaddr_in);
 void helpCmd();
-void getCmd(int, char*, char*, struct sockaddr_in);
+void getCmd(int, char*, char*, char*, struct sockaddr_in);
 void modeCmd(char*, char*);
 void quitCmd();
-void sendCommand(int, char*);
+void sendCommand(int, char*, struct sockaddr_in);
 
 
 
