@@ -7,9 +7,9 @@ PUTILITY=./Utility/
 PCLIENT=./Client/
 PSERVER=./Server/
 
-all: utility.o $(PSERVER)server.o $(PCLIENT)client.o
+all: utility.o $(PSERVER)request.o $(PSERVER)server.o $(PCLIENT)client.o
 		$(CC) $(PCLIENT)utility.o $(LDFLAGS) $(PCLIENT)client.o -o $(PCLIENT)tftp_client
-		$(CC) $(PSERVER)utility.o $(PSERVER)server.o -o $(PSERVER)tftp_server
+		$(CC) $(PSERVER)utility.o $(PSERVER)request.o $(PSERVER)server.o -o $(PSERVER)tftp_server
 	
 tftp_client: utility.o client.o
 		$(CC) $(LDFLAGS) $(PCLIENT)utility.o $(PCLIENT)client.o -o $(PCLIENT)tftp_client
@@ -17,11 +17,11 @@ tftp_client: utility.o client.o
 client.o: $(PCLIENT)client.c $(PCLIENT)client.h
 		$(CC) $(CFLAGS) $(LDFLAGS) -c $(PCLIENT)client.c -o $(PCLIENT)client.o
 
-tftp_server: utility.o server.o
-		$(CC) $(LDFLAGS) $(PSERVER)utility.o $(PSERVER)server.o -o $(PSERVER)tftp_server
+tftp_server: request.o utility.o server.o
+		$(CC) $(LDFLAGS) $(PSERVER)request.o $(PSERVER)utility.o $(PSERVER)server.o -o $(PSERVER)tftp_server
 
 
-server.o: $(PSERVER)server.c $(PSERVER)server.h
+server.o: $(PSERVER)server.c $(PSERVER)server.h $(PSERVER)request.o
 		$(CC) $(CFLAGS) $(LDFLAGS) -c $(PSERVER)server.c -o $(PSERVER)server.o
 
 
@@ -32,6 +32,9 @@ utility.o: $(PUTILITY)utility.c $(PUTILITY)utility.h
 		 cp $(PUTILITY)utility.h $(PSERVER)utility.h
 		 $(CC) $(CFLAGS) -c $(PCLIENT)utility.c -o $(PCLIENT)utility.o
 		 $(CC) $(CFLAGS) -c $(PSERVER)utility.c -o $(PSERVER)utility.o
+
+request.o: $(PSERVER)request.c $(PSERVER)request.h
+		 $(CC) $(CFLAGS) -c $(PSERVER)request.c -o $(PSERVER)request.o
 
 clean:
 	rm -f $(PCLIENT)utility.c $(PCLIENT)utility.h
