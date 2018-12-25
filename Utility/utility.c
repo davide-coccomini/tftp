@@ -15,16 +15,7 @@ void sendBuffer(int sock, char* buffer, int position, struct sockaddr_in server_
 	}
 	
 	nbytes = sendto(sock, buffer, length, 0,(struct sockaddr*)&server_addr, sizeof(server_addr));
-/*
-	int m;
-	for(m=0; m<position;m++){
-		if(m<4 || m==position-1)
-			printf("\nlettera:%d %d\n",m,buffer[m]);
-		else
-			printf("\nlettera:%d %c\n",m,buffer[m]);
-	}
-	printf("\nlength: %d; nbytes: %d\n", position, nbytes);
-*/
+
 	if(nbytes < sizeof(buffer)){
 		perror("\nERRORE: Invio dei dati non riuscito\n");
 	}
@@ -61,21 +52,12 @@ struct result receiveBuffer(int sock){
 	
 	nbytes = recvfrom(sock, buffer, length, 0, (struct sockaddr*)&client_addr, &addrlen);
 
-/*	int m;
-	for(m=0; m<length+10;m++){
-		if(m<4 || m==length-1)
-			printf("\nlettera:%d %d\n",m,buffer[m]);
-		else
-			printf("\nlettera:%d %c\n",m,buffer[m]);
-	}
-	printf("\nlength: %d; nbytes: %d\n", length, nbytes);
-*/
+	buffer[length] = 0;
 	r.length = length;
 	r.buffer = buffer;
 	r.client_addr = client_addr;
 	return r;
 }
-
 
 
 
