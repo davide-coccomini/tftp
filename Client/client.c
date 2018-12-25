@@ -9,20 +9,18 @@ int main(int argc, char** argv){
 	char cmd[CMD_SIZE];
 
 	if(argc != 3){
-		printf("\nPer avviare il programma digita ./tftp_client <IP_server> <porta_server>\n\n");
+		printf("\nPer avviare il programma digita ./tftp_client <IP_server> <porta_server>\n");
 		return 0;
 	}
 
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	printf("\nsock: %d\n", sock);
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(atoi(argv[2]));
-	
 	inet_pton(AF_INET, argv[1], &server_addr.sin_addr);
 
-	
+
 	char transferMode[CMD_SIZE]; 
 	strcpy(transferMode,"octet\0");
 
@@ -45,13 +43,12 @@ int main(int argc, char** argv){
 			memset(&localName, 0, BUFFER_SIZE);
 			scanf("%s %s", fileName, localName);
 			getCmd(sock, fileName, localName, transferMode, server_addr);
-
 		}else if(!strcmp(cmd, "!quit\0")){
 			quitCmd(sock);
 		}else{
 			printf("\nOperazione non prevista, digita !help per la lista dei comandi\n");	
 		}
-
+     printf(">");
 	}
  return 0;
 }
@@ -60,6 +57,7 @@ int main(int argc, char** argv){
 void initMessage(int sock, const char* server, const char* port, struct sockaddr_in server_addr){
 	printf("Stai comunicando con %s alla porta %s effettuata con successo\n", server,port);
 	helpCmd();
+	printf(">");
 }
 
 void helpCmd(){
@@ -88,12 +86,12 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	char buffer[BUFFER_SIZE];
 	memset(&buffer, 0, BUFFER_SIZE);
 	int position = 0;
+	long long transfers = 0;
 	uint16_t errorCode;
 	uint16_t opcode = htons(1);
 	uint16_t fileNameLength = strlen(fileName);
-
+	
 	memcpy(buffer, (uint16_t*)&opcode, 2);
-	printf("\nopcode: %d\n", opcode);
 	position += 2;
 
 	strcpy(buffer + position, fileName);
@@ -110,13 +108,17 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	char bufferAck[BUFFER_SIZE];
 
 	FILE* fp;
-	if(!strcmp(transferMode, "netascii\0"))
+	if(!strcmp(transferMode, "netascii\0")){
 		fp = fopen(localName, "w+");
-	else
+	}else{
 		fp = fopen(localName, "wb+");
-
+	}
 	while(1){	
-		char* bufferPacket = '\0';
+		if(transfers == 0){
+			printf("\nTrasferimento del file in corso.\n");
+		}	
+		char* bufferPacket;	
+	
 		// Ricezione del blocco	
 		position = 0;
 	
@@ -136,14 +138,15 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 			errorCode = ntohs(errorCode);
 			position += 2;
 			char message[BUFFER_SIZE];
+			memset(&message, 0, r.length);
 			strcpy(message, bufferPacket+position);
-			printf("\nERRORE! (%d) %s\n",ntohs(errorCode), message);
+			message[length] = 0;
+			printf("\nERRORE! (%d) %s\n",errorCode, message);
 			remove(localName);
 			return;
 		}
 
 		// Lettura del blocco
-		
 		uint16_t block;
 		memcpy(&block, bufferPacket + position, 2);
 		
@@ -155,17 +158,11 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 			fprintf(fp, "%s", file);
 		}else{
 			memcpy(file, bufferPacket+position, FILE_BUFFER_SIZE);
-			fwrite(&file,length-4, 1 ,fp);
+			fwrite(&file,length-4, 1 ,fp); // -4 per eliminare opcode e block
 		}
 		free(bufferPacket);
 
-	/*
-		printf("\r/ Ricezione in corso");
-		fflush(stdout);
-		printf("\r- Ricezione in corso");
-		fflush(stdout);
-		printf("\r\\ Ricezione in corso");
-		fflush(stdout);*/
+		
 		// Invio dell'ACK	
 		position = 0;
 		
@@ -176,23 +173,25 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 		position += 2;
 		memcpy(bufferAck + position, (uint16_t*)&block, 2);
 		position += 2;
-		//printf("\nInvio dell'ACK\n");
 	
 		sendBuffer(sock, bufferAck, sizeof(bufferAck), server_addr);
 
+		transfers++;
+			
 		// Fine dei trasferimenti
 		if(length<PACKET_SIZE){
-			printf("\nTrasferimento del file completato (%d/%d blocchi)\n", ntohs(block), ntohs(block));
+			printf("\nTrasferimento del file completato (%llu/%llu blocchi).\n", transfers, transfers);
+			printf("\nSalvataggio %s completato.\n", fileName);
 			fclose(fp);
 			break;
 		}
 	}
-
+ 
 }
 
 void quitCmd(int sock){
 	close(sock);
-	printf("\nDisconnessione effettuata\n");
+	printf("\nDisconnessione effettuata.\n");
 	exit(0);
 }
 
