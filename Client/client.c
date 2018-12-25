@@ -36,24 +36,29 @@ int main(int argc, char** argv){
 		if(!strcmp(cmd, "!help\0")){
 			helpCmd();
 		}else if(!strcmp(cmd, "!mode\0")){
-			char* mode = argv[1];
+			char mode[BUFFER_SIZE];
 			scanf("%s",mode);
 			modeCmd(mode, transferMode);
 		}else if(!strcmp(cmd, "!get\0")){
 			char fileName[BUFFER_SIZE], localName[BUFFER_SIZE];
 			memset(&fileName, 0, BUFFER_SIZE);
+			memset(&localName, 0, BUFFER_SIZE);
 			scanf("%s %s", fileName, localName);
 			getCmd(sock, fileName, localName, transferMode, server_addr);
+
 		}else if(!strcmp(cmd, "!quit\0")){
 			quitCmd(sock);
+		}else{
+			printf("\nOperazione non prevista, digita !help per la lista dei comandi\n");	
 		}
 
 	}
+ return 0;
 }
 
 
 void initMessage(int sock, const char* server, const char* port, struct sockaddr_in server_addr){
-	printf("Connessione al server %s alla porta %s effettuata con successo\n", server,port);
+	printf("Stai comunicando con %s alla porta %s effettuata con successo\n", server,port);
 	helpCmd();
 }
 
@@ -73,7 +78,7 @@ void modeCmd(char* mode, char* currentMode){
 		printf("Modo di trasferimento binario configurato.\n");
 		strcpy(currentMode,"octet\0");
 	}else{
-		printf("ERRORE: Modo di trasferimento non previsto.\n");
+		printf("ERRORE: Modo di trasferimento non previsto {txt|bin}.\n");
 	}
  return;	
 }
@@ -83,13 +88,12 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	char buffer[BUFFER_SIZE];
 	memset(&buffer, 0, BUFFER_SIZE);
 	int position = 0;
-	printf("\nPreparazione del buffer da inviare\n");
 	uint16_t errorCode;
 	uint16_t opcode = htons(1);
 	uint16_t fileNameLength = strlen(fileName);
 
 	memcpy(buffer, (uint16_t*)&opcode, 2);
-
+	printf("\nopcode: %d\n", opcode);
 	position += 2;
 
 	strcpy(buffer + position, fileName);
@@ -98,13 +102,12 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	
 	strcpy(buffer + position, transferMode);
 	position += strlen(transferMode)+1;
-
-	printf("\nInvio richiesta di download al server\n");
 	
 	sendBuffer(sock, buffer, position, server_addr);
 	
 
 	char file[BUFFER_SIZE];
+	char bufferAck[BUFFER_SIZE];
 
 	FILE* fp;
 	if(!strcmp(transferMode, "netascii\0"))
@@ -126,19 +129,21 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	
 		memcpy(&opcode, bufferPacket, 2);
 		opcode = ntohs(opcode);
-		
+		position += 2;
 		// Errore
 		if(opcode == 5){ 
-			memcpy(&errorCode, bufferPacket, 2);
+			memcpy(&errorCode, bufferPacket+position, 2);
+			errorCode = ntohs(errorCode);
 			position += 2;
 			char message[BUFFER_SIZE];
-			strcpy(message, buffer);
-			printf("\nERRORE! (%d) %s", errorCode, message);
+			strcpy(message, bufferPacket+position);
+			printf("\nERRORE! (%d) %s\n",ntohs(errorCode), message);
+			remove(localName);
 			return;
 		}
 
 		// Lettura del blocco
-		position = 2;
+		
 		uint16_t block;
 		memcpy(&block, bufferPacket + position, 2);
 		
@@ -150,13 +155,20 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 			fprintf(fp, "%s", file);
 		}else{
 			memcpy(file, bufferPacket+position, FILE_BUFFER_SIZE);
-			fwrite(&file,length, 1 ,fp);
+			fwrite(&file,length-4, 1 ,fp);
 		}
-		printf("\nRicezione del blocco %d effettuata\n", block);		
+		free(bufferPacket);
 
-		// Invio dell'ACK		
+	/*
+		printf("\r/ Ricezione in corso");
+		fflush(stdout);
+		printf("\r- Ricezione in corso");
+		fflush(stdout);
+		printf("\r\\ Ricezione in corso");
+		fflush(stdout);*/
+		// Invio dell'ACK	
 		position = 0;
-		char bufferAck[BUFFER_SIZE];
+		
 		memset(bufferAck, 0, BUFFER_SIZE);
 		opcode = htons(4);
 		block = htons(block);
@@ -164,12 +176,13 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 		position += 2;
 		memcpy(bufferAck + position, (uint16_t*)&block, 2);
 		position += 2;
-		printf("\nInvio dell'ACK\n");
+		//printf("\nInvio dell'ACK\n");
+	
 		sendBuffer(sock, bufferAck, sizeof(bufferAck), server_addr);
 
 		// Fine dei trasferimenti
 		if(length<PACKET_SIZE){
-			printf("\nTrasferimento del file completato\n");
+			printf("\nTrasferimento del file completato (%d/%d blocchi)\n", ntohs(block), ntohs(block));
 			fclose(fp);
 			break;
 		}

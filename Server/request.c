@@ -7,9 +7,10 @@ void initRequestList(){
 	requestList.next = NULL;
 }
 
-void addRequest(int sock, FILE* fp, int packets,char* mode, int block){
+void addRequest(int sock, struct sockaddr_in client_addr, FILE* fp, int packets,char* mode, int block){
 	struct request *r = malloc(sizeof(struct request));
 	r->sock = sock;
+	r->client_addr = client_addr;
 	r->fp = fp;
 	r->packets = packets;
 	r->mode = malloc(sizeof(mode)+1);
@@ -42,6 +43,7 @@ void removeRequest(int sock){
 			break;
 		}			
 	}
+
 	if(r){
 		if(r == requestList.next){
 			requestList.next = r->next;
@@ -50,7 +52,23 @@ void removeRequest(int sock){
 		}
 	}
 }
-
+void resetRequestList(){
+	struct request* r = requestList.next;
+	for(; r; r = r->next){
+		free(r->next);
+	}
+ initRequestList();
+}
+int findMaxSocket(int listener){
+	struct request* r = &requestList;
+	int max = listener;
+	for(; r; r = r->next){
+		if(max < r->sock){
+			max = r->sock;
+		}
+	}
+   return max;
+}
 struct request* findRequest(int sock){
 
 	struct request* r = &requestList;

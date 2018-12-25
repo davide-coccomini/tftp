@@ -46,20 +46,54 @@ int main(int argc, char** argv){
 	FD_SET(listener, &read_fds);
 	fdmax = listener;
 
-
+	char fileName[BUFFER_SIZE];
+	char mode[BUFFER_SIZE];	
+	char bufferPacket[PACKET_SIZE];
+	char bufferFile[FILE_BUFFER_SIZE];
+	char bufferError[BUFFER_SIZE];
+	char message[FILE_BUFFER_SIZE];
 	for(;;){	
-	 	select(fdmax+1, &read_fds, NULL, NULL, NULL);
+	 select(fdmax+1, &read_fds, NULL, NULL, NULL);
 		
 	 for(i=0; i<=fdmax; i++){
-	  if(FD_ISSET(i, &read_fds)){		
+	 
+	//printf("\ni: %d, listener: %d \n", i, listener);
+	  if(FD_ISSET(i, &read_fds)){
+		
 		struct result ret = receiveBuffer(listener);	
+		sleep(0.3);
 		client_addr = ret.client_addr;
 		char* buffer = ret.buffer;
 		uint16_t opcode, errorCode;
-		char fileName[BUFFER_SIZE];
-		char mode[BUFFER_SIZE];
-		if(i==listener){ // Il descrittore pronto è il listener
-			
+		memcpy(&opcode, buffer, 2);
+	
+		opcode = ntohs(opcode);
+		// Errore
+		if(opcode != 1 && opcode != 4){
+			printf("\nOperazione TFTP non prevista\n");
+			opcode = htons(5);
+			errorCode = htons(1);
+			char* message = "Operazione TFTP non prevista";	
+				
+	
+			memcpy(bufferError, (uint16_t*)&opcode, 2);
+			position += 2;
+			memcpy(bufferError+position, (uint16_t*)&errorCode, 2);
+			position += 2;
+			strcpy(bufferError+position, message);
+			position += strlen(message);
+	
+			sendBuffer(newfd, bufferError, position, client_addr);
+			close(newfd);
+			FD_CLR(newfd, &read_fds);
+			i=0;
+			memset(bufferFile, 0, FILE_BUFFER_SIZE);
+			continue;
+		}
+
+		if(opcode == 1) i=listener;
+		if(i==listener && opcode == 1){ // Il descrittore pronto è il listener
+			printf("\n i==listener\n");
 		 	newfd =  socket(AF_INET, SOCK_DGRAM, 0);
 		
 			
@@ -67,32 +101,13 @@ int main(int argc, char** argv){
 			if(newfd > fdmax) fdmax = newfd;	
 			position = 0;
 	
-			memcpy(&opcode, buffer, 2);
-			opcode = ntohs(opcode);
-			// Errore
-			if(opcode != 1){
-				opcode = htons(5);
-				errorCode = htons(1);
-				char* message = "Richiesta invalida";	
-				char bufferError[BUFFER_SIZE];	
 	
-				memcpy(bufferError, (uint16_t*)&opcode, 2);
-				position += 2;
-				memcpy(bufferError+position, (uint16_t*)&errorCode, 2);
-				position += 2;
-				strcpy(bufferError+position, message);
-				position += strlen(message)+1;
-
-	
-				sendBuffer(newfd, bufferError, position, client_addr);
-
-			}
-
-	
+			
+			memset(fileName, 0, BUFFER_SIZE);
 			strcpy(fileName, buffer+2);
 			strcpy(mode, buffer + (int)strlen(fileName)+3);
+			free(buffer);
 			
-
 			
 			printf("\nRichiesta di download del file %s in modalità %s\n", fileName, mode);
 			char* path = malloc(strlen(directory)+strlen(fileName)+2);
@@ -104,120 +119,124 @@ int main(int argc, char** argv){
 				fp = fopen(path, "r");
 			else
 				fp = fopen(path, "rb");
+
+			free(path);
 			if(fp == NULL){
 				position = 0;
 				printf("\nERRORE! Lettura del file %s non riuscita\n", fileName);
 				opcode = htons(5);
-				char* message = "File non trovato";
-
-				char errorBuffer[BUFFER_SIZE];	
-
-				memcpy(errorBuffer, (uint16_t*)&opcode, 2);
-				position += 2;
-				strcpy(errorBuffer+position, message);
-
-				sendBuffer(newfd, errorBuffer, position, client_addr);
-		
-			}
-
-			printf("\nLettura del file %s riuscita\n", fileName);
-			// Lettura della lunghezza del contenuto del file
-		
-			fseek(fp, 0 , SEEK_END);
-			unsigned int length = ftell(fp);
-			fseek(fp, 0 , SEEK_SET);
-
-			unsigned int nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
-			addRequest(newfd, fp, length-nchars, mode, 0);
-			
-			if(!strcmp(mode, "netascii\0")){	
-				char bufferFile[FILE_BUFFER_SIZE];
+				errorCode = htons(1);
 				
-				int k;
-				for(k = 0; k<nchars; k++){
-					bufferFile[k] = fgetc(fp);
-				}
-
-
-				// Lettura ed invio di un blocco
-				position = 0;
-
-			
-				char bufferPacket[PACKET_SIZE];
-			
-				opcode = htons(3);
-				memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+				strcpy(message, "File non trovato");
+				
+				
+				memcpy(bufferError, (uint16_t*)&opcode, 2);
 				position += 2;
-				uint16_t blockSend = htons(1);
-				memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
+				memcpy(bufferError+position, (uint16_t*)&errorCode, 2);
 				position += 2;
-
-				strcpy(bufferPacket + position, bufferFile);
-				position += nchars;
-				sendBuffer(newfd, bufferPacket, position, client_addr);
-		
-			
+				
+				strcpy(bufferError+position, message);
+				position += strlen(message);
+				sendBuffer(newfd, bufferError, position, client_addr);	
+				close(newfd);
+				FD_CLR(newfd, &read_fds);
+				i=0;
 				memset(bufferFile, 0, FILE_BUFFER_SIZE);
-			
+				continue;
 			}else{
-				unsigned char bufferFile[FILE_BUFFER_SIZE];
-				fread(bufferFile, nchars, 1, fp);
+				printf("\nLettura del file %s riuscita\n", fileName);
+				// Lettura della lunghezza del contenuto del file
+		
+				fseek(fp, 0 , SEEK_END);
+				unsigned int length = ftell(fp);
+				fseek(fp, 0 , SEEK_SET);
 
-				// Lettura ed invio di un blocco
-				position = 0;
-
+				unsigned int nchars = (length > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:length;
+				addRequest(newfd, client_addr, fp, length-nchars, mode, 0);
 			
-				char bufferPacket[PACKET_SIZE];
-			
-				opcode = htons(3);
-				memcpy(bufferPacket, (uint16_t*)&opcode, 2);
-				position += 2;
-				uint16_t blockSend = htons(1);
-				memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
-				position += 2;
-
-				memcpy(bufferPacket + position, bufferFile, nchars);
-				position += nchars;
-				sendBuffer(newfd, bufferPacket, position, client_addr);
-			
-				memset(bufferFile, 0, FILE_BUFFER_SIZE);
+		
+				if(!strcmp(mode, "netascii\0")){	
 				
+					int k;
+					for(k = 0; k<nchars; k++){
+						bufferFile[k] = fgetc(fp);
+					}
+
+
+					// Lettura ed invio di un blocco
+					position = 0;
+
+			
+				
+					opcode = htons(3);
+					memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+					position += 2;
+					uint16_t blockSend = htons(1);
+					memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
+					position += 2;
+
+					strcpy(bufferPacket + position, bufferFile);
+					position += nchars;
+					sendBuffer(newfd, bufferPacket, position, client_addr);
+		
+			
+					memset(bufferFile, 0, FILE_BUFFER_SIZE);
+
+			
+				}else{
+					fread(bufferFile, nchars, 1, fp);
+
+					// Lettura ed invio di un blocco
+					position = 0;
+
+			
+			
+			
+					opcode = htons(3);
+					memcpy(bufferPacket, (uint16_t*)&opcode, 2);
+					position += 2;
+					uint16_t blockSend = htons(1);
+					memcpy(bufferPacket + position, (uint16_t*)&blockSend, 2);
+					position += 2;
+
+					memcpy(bufferPacket + position, bufferFile, nchars);
+					position += nchars;
+					sendBuffer(newfd, bufferPacket, position, client_addr);
+			
+					memset(bufferFile, 0, FILE_BUFFER_SIZE);
+			
+				
+				}
+		 	 FD_CLR(listener, &read_fds);	
 			}
-	 	 FD_CLR(listener, &read_fds);	
-		 printf("\nTrasferimento del primo blocco completato\n");
 
-
-		}else{ // Il descrittore pronto è un altro socket
-			printf("\nRicezione dell'ACK\n");
+		}else if(i!=listener && opcode == 4){ // Il descrittore pronto è un altro socket
+			//printf("\nRicezione dell'ACK\n");
 			// Attesa dell'ACK
 			char* bufferAck = ret.buffer;
 			if(!bufferAck){
-				printf("\nERRORE! ACK invalido");	
-				
+				printf("\nERRORE! ACK invalido\n");	
 			}
+			free(bufferAck);
 			struct request* r = findRequest(i);
 			removeRequest(i);
-
 			if(r->packets > 0){
-				
 				unsigned int nchars = (r->packets > FILE_BUFFER_SIZE)?FILE_BUFFER_SIZE:r->packets;
 				
 				r->block++;
-				printf("\nInvio del blocco %d\n", r->block);
-				addRequest(r->sock, r->fp, r->packets-nchars, r->mode, r->block);		
+				//printf("\r[%d]Invio del blocco", r->block);
+				addRequest(r->sock, r->client_addr, r->fp, r->packets-nchars, r->mode, r->block);		
 	
 				
 				
 				// Lettura ed invio di un blocco
 				position = 0;
 				
-			
+				
 				opcode = htons(3);
 				uint16_t blockSend = htons(r->block);
 				if(!strcmp(r->mode, "netascii\0")){	
-				
-					char bufferPacket[PACKET_SIZE];
-					char bufferFile[FILE_BUFFER_SIZE];
+
 
 					int k;
 					for(k = 0; k<nchars; k++){
@@ -230,13 +249,10 @@ int main(int argc, char** argv){
 
 					strcpy(bufferPacket + position, bufferFile);
 					position += nchars;
-					sendBuffer(i, bufferPacket, position, client_addr);
+					sendBuffer(i, bufferPacket, position, r->client_addr);
 
-					memset(bufferFile, 0, FILE_BUFFER_SIZE);
 				}else{
 				
-					unsigned char bufferPacket[PACKET_SIZE];
-					unsigned char bufferFile[FILE_BUFFER_SIZE];
 					fread(bufferFile, nchars, 1, r->fp);
 					memcpy(bufferPacket, (uint16_t*)&opcode, 2);
 					position += 2;
@@ -245,19 +261,27 @@ int main(int argc, char** argv){
 
 					memcpy(bufferPacket + position, bufferFile, nchars);
 					position += nchars;
-					sendBuffer(i, bufferPacket, position, client_addr);
+					sendBuffer(i, bufferPacket, position, r->client_addr);
 
-					memset(bufferFile, 0, FILE_BUFFER_SIZE);
 				}
-				FD_SET(i, &read_fds);
-				i--;
+				memset(bufferFile, 0, FILE_BUFFER_SIZE);
+
 			}else{
-				FD_SET(listener, &read_fds);
+				if(i == fdmax){
+					fdmax = findMaxSocket(listener);
+					if(fdmax == listener){
+						resetRequestList();
+						FD_SET(listener, &read_fds);
+					}
+				}
+				close(i);
 			   	FD_CLR(i, &read_fds);
+				i=0;
 				printf("\nL'intero file è stato trasferito con successo\n");
 			}	
 		 
 		}
+		if(i==findMaxSocket(listener)) i=0;		
 	  }
 	 }
 		
