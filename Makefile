@@ -1,48 +1,45 @@
+PATH_UTILITY=./Utility/
+PATH_CLIENT=./Client/
+PATH_SERVER=./Server/
+
 CC=gcc
 CFLAGS=-Wall
-LDFLAGS=-lpthread
-TERM=x-terminal-emulator
 
-PUTILITY=./Utility/
-PCLIENT=./Client/
-PSERVER=./Server/
 
-all: utility.o $(PSERVER)request.o $(PSERVER)server.o $(PCLIENT)client.o
-		$(CC) $(PCLIENT)utility.o $(LDFLAGS) $(PCLIENT)client.o -o $(PCLIENT)tftp_client
-		$(CC) $(PSERVER)utility.o $(PSERVER)request.o $(PSERVER)server.o -o $(PSERVER)tftp_server
+all: utility.o $(PATH_SERVER)request.o $(PATH_SERVER)server.o $(PATH_CLIENT)client.o
+		$(CC) $(PATH_CLIENT)utility.o $ $(PATH_CLIENT)client.o -o $(PATH_CLIENT)tftp_client
+		$(CC) $(PATH_SERVER)utility.o $(PATH_SERVER)request.o $(PATH_SERVER)server.o -o $(PATH_SERVER)tftp_server
 	
 tftp_client: utility.o client.o
-		$(CC) $(LDFLAGS) $(PCLIENT)utility.o $(PCLIENT)client.o -o $(PCLIENT)tftp_client
+		$(CC) $ $(PATH_CLIENT)utility.o $(PATH_CLIENT)client.o -o $(PATH_CLIENT)tftp_client
 
-client.o: $(PCLIENT)client.c $(PCLIENT)client.h
-		$(CC) $(CFLAGS) $(LDFLAGS) -c $(PCLIENT)client.c -o $(PCLIENT)client.o
+client.o: $(PATH_CLIENT)client.c $(PATH_CLIENT)client.h
+		$(CC) $(CFLAGS) $ -c $(PATH_CLIENT)client.c -o $(PATH_CLIENT)client.o
 
 tftp_server: request.o utility.o server.o
-		$(CC) $(LDFLAGS) $(PSERVER)request.o $(PSERVER)utility.o $(PSERVER)server.o -o $(PSERVER)tftp_server
+		$(CC) $ $(PATH_SERVER)request.o $(PATH_SERVER)utility.o $(PATH_SERVER)server.o -o $(PATH_SERVER)tftp_server
 
 
-server.o: $(PSERVER)server.c $(PSERVER)server.h $(PSERVER)request.o
-		$(CC) $(CFLAGS) $(LDFLAGS) -c $(PSERVER)server.c -o $(PSERVER)server.o
+server.o: $(PATH_SERVER)server.c $(PATH_SERVER)server.h $(PATH_SERVER)request.o
+		$(CC) $(CFLAGS) $ -c $(PATH_SERVER)server.c -o $(PATH_SERVER)server.o
 
 
-utility.o: $(PUTILITY)utility.c $(PUTILITY)utility.h
-		 cp $(PUTILITY)utility.c $(PCLIENT)utility.c
-		 cp $(PUTILITY)utility.h $(PCLIENT)utility.h
-		 cp $(PUTILITY)utility.c $(PSERVER)utility.c
-		 cp $(PUTILITY)utility.h $(PSERVER)utility.h
-		 $(CC) $(CFLAGS) -c $(PCLIENT)utility.c -o $(PCLIENT)utility.o
-		 $(CC) $(CFLAGS) -c $(PSERVER)utility.c -o $(PSERVER)utility.o
+utility.o: $(PATH_UTILITY)utility.c $(PATH_UTILITY)utility.h
+		 cp $(PATH_UTILITY)utility.c $(PATH_CLIENT)utility.c
+		 cp $(PATH_UTILITY)utility.h $(PATH_CLIENT)utility.h
+		 cp $(PATH_UTILITY)utility.c $(PATH_SERVER)utility.c
+		 cp $(PATH_UTILITY)utility.h $(PATH_SERVER)utility.h
+		 $(CC) $(CFLAGS) -c $(PATH_CLIENT)utility.c -o $(PATH_CLIENT)utility.o
+		 $(CC) $(CFLAGS) -c $(PATH_SERVER)utility.c -o $(PATH_SERVER)utility.o
 
-request.o: $(PSERVER)request.c $(PSERVER)request.h
-		 $(CC) $(CFLAGS) -c $(PSERVER)request.c -o $(PSERVER)request.o
+request.o: $(PATH_SERVER)request.c $(PATH_SERVER)request.h
+		 $(CC) $(CFLAGS) -c $(PATH_SERVER)request.c -o $(PATH_SERVER)request.o
 
 clean:
-	rm -f $(PCLIENT)utility.c $(PCLIENT)utility.h
-	rm -f $(PSERVER)utility.c $(PSERVER)utility.h	
-	rm -f $(PCLIENT)*.o $(PCLIENT)tftp_client
-	rm -f $(PSERVER)*.o $(PSERVER)tftp_server
+	rm -f $(PATH_CLIENT)utility.c $(PATH_CLIENT)utility.h
+	rm -f $(PATH_SERVER)utility.c $(PATH_SERVER)utility.h	
+	rm -f $(PATH_CLIENT)*.o $(PATH_CLIENT)tftp_client
+	rm -f $(PATH_SERVER)*.o $(PATH_SERVER)tftp_server
 
 
-test: all
-	$(TERM) -e sh ./test.sh
-	# sh ./stop.sh
+
