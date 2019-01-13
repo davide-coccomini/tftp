@@ -102,7 +102,6 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 	position += strlen(transferMode)+1;
 	
 	sendBuffer(sock, buffer, position, server_addr);
-	
 
 	char file[BUFFER_SIZE];
 	char bufferAck[BUFFER_SIZE];
@@ -175,7 +174,8 @@ void getCmd(int sock, char* fileName, char* localName, char* transferMode, struc
 		position += 2;
 	
 		sendBuffer(sock, bufferAck, sizeof(bufferAck), server_addr);
-
+		printf("\rScaricando...");
+	
 		transfers++;
 			
 		// Fine dei trasferimenti

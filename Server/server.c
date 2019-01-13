@@ -58,8 +58,9 @@ int main(int argc, char** argv){
 	 for(i=0; i<=fdmax; i++){
 	  if(FD_ISSET(i, &read_fds)){
 		
-		struct result ret = receiveBuffer(listener);	
-		sleep(0.5);
+		struct result ret = receiveBuffer(listener);
+		printf("\rInviando...");	
+		sleep(0.8);
 		client_addr = ret.client_addr;
 		char* buffer = ret.buffer;
 		uint16_t opcode, errorCode;
@@ -67,7 +68,6 @@ int main(int argc, char** argv){
 	
 		opcode = ntohs(opcode);
 		// Errore
-		
 		if(opcode != 1 && opcode != 4){
 			position=0;
 			printf("\nOperazione TFTP non prevista\n");
